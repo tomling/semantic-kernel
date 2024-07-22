@@ -1,6 +1,9 @@
-﻿using Microsoft.SemanticKernel;
+﻿#pragma warning disable SKEXP0001
+#pragma warning disable SKEXP0010
+using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.TextToImage;
 
 namespace SemanticKernel
 {
@@ -9,19 +12,23 @@ namespace SemanticKernel
         public static async Task Main(string[] args)
         {
             // Create a kernel with Azure OpenAI chat completion
-            var modelId = "gpt-4o-mini";
             var apiKey = Environment.GetEnvironmentVariable("ChatGPT");
 
             if (string.IsNullOrEmpty(apiKey))
             {
-                throw new ApplicationException("Please ensure to store your API Key in environment variables named ChatGPT.");
+                throw new ApplicationException(
+                    "Please ensure to store your API Key in environment variables named ChatGPT.");
             }
-            var builder = Kernel.CreateBuilder().AddOpenAIChatCompletion(modelId, apiKey);
+
+            var builder = Kernel.CreateBuilder();
+            builder.AddOpenAIChatCompletion("gpt-4o-mini", apiKey);
+            builder.AddOpenAITextToImage(apiKey, modelId: "dall-e-3");
 
             // Build the kernel
             var kernel = builder.Build();
             var chatCompletionService = kernel.GetRequiredService<IChatCompletionService>();
 
+            var dallE = kernel.GetRequiredService<ITextToImageService>();
             // Add a plugin (the LightsPlugin class is defined below)
             kernel.Plugins.AddFromType<LightsPlugin>("Lights");
 
@@ -60,6 +67,12 @@ namespace SemanticKernel
 
                 // Print the results
                 Console.WriteLine("Assistant > " + result);
+
+                if (result.Content != null)
+                {
+                    var imageUrl = await dallE.GenerateImageAsync("Generate an image of some house lights", 1024, 1024);
+                    Console.WriteLine($"Generated image: {imageUrl}");
+                }
 
                 // Add the message from the agent to the chat history
                 history.AddMessage(result.Role, result.Content ?? string.Empty);
